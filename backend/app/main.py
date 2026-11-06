@@ -6,8 +6,8 @@ from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, JSONResponse
 from pydantic import BaseModel, Field, ConfigDict
-from sqlalchemy import select
-from .database import Session, User, Record, Audit, init_db, serialize, audit, now, uid
+from sqlalchemy import select, text
+from .database import Session, User, Record, Audit, init_db, serialize, audit, now, uid, engine
 from .security import current, reviewer, admin, token, hash_password, verify, public_user, DEMO
 from .orchestration.workflow import analyze, AGENTS
 from .rag.retrieval import chunks
@@ -89,7 +89,7 @@ def execute(db,c,user):
     audit(db,user,'Analysis completed',c.id); notify(db,user,'Analysis completed'+(' · Expert review required' if state['escalation'] else ''),c.id)
     return serialize(c)
 
-def seed():
+def seed_data():
     init_db()
     if not DEMO: return
     with Session() as db:
@@ -128,10 +128,18 @@ def seed():
                     if e['case_id']==cid:
                         er=get(db,e['id']);er.data={**er.data,'status':decision,'assigned_to':'demo-expert','assigned_name':'Dr. Arjun Shah'};db.commit()
                 add(db,'report',{'case_id':cid,'patient_name':name,'status':decision,'snapshot':serialize(c)},user,stable('report:'+name))
+def seed():
+    if engine.dialect.name == 'postgresql':
+        # Serialize initialization across concurrent serverless cold starts.
+        with engine.connect() as connection:
+            connection.execute(text('SELECT pg_advisory_lock(781450621)'))
+            try: seed_data()
+            finally: connection.execute(text('SELECT pg_advisory_unlock(781450621)'))
+    else: seed_data()
 seed()
 
 @app.get('/api/health')
-def health(): return {'status':'ok','mode':'synthetic-demo' if DEMO else 'configured','storage':'ephemeral-demo' if os.getenv('VERCEL') and not os.getenv('DATABASE_URL') else 'database','version':'1.0.0'}
+def health(): return {'status':'ok','mode':'synthetic-demo' if DEMO else 'configured','storage':'postgresql' if engine.dialect.name=='postgresql' else 'ephemeral-demo' if os.getenv('VERCEL') and not os.getenv('DATABASE_URL') else 'database','durable_storage':engine.dialect.name=='postgresql','version':'1.1.0'}
 @app.get('/api/system/status')
 def status(user=Depends(current)): return {**health(),'agents':len(AGENTS),'calibration':'unvalidated','durable_storage':bool(os.getenv('DATABASE_URL'))}
 @app.post('/api/auth/login')

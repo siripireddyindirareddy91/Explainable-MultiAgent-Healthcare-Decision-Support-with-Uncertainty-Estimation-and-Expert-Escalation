@@ -69,6 +69,8 @@ Agent responsibilities are deterministic rules and retrieval operations, not tra
 
 ## Database and deployment
 
+The live Vercel deployment is connected to the free Neon PostgreSQL resource `clinixai-postgres`. Vercel injects its DATABASE_URL; no database credentials are tracked in this repository. Accounts, patients, cases, reviews, reports and audit records now use this shared durable database. Serverless connections use SQLAlchemy NullPool, and PostgreSQL advisory locking serializes schema initialization/seeding across cold starts. A private JWT_SECRET is stored in Vercel; existing browser sessions must sign in again after this change. Demo accounts and synthetic-only usage remain enabled. Old temporary SQLite records are not automatically recoverable. Free-provider quotas and retention policies still apply; this is not a backup guarantee.
+
 Local default: persistent SQLite in `clinixai.db`. For durable PostgreSQL set `DATABASE_URL=postgresql+psycopg://user:password@host/database?sslmode=require`. The version-one schema uses `users`, indexed typed JSON `records`, and `audit_logs`. Record kinds represent patients, cases, knowledge/chunks, clinical documents, agent executions, checkpoints, escalations, reviews/comments, reports and notifications. This compact implementation is not the proposed normalized 27-table schema. The initialization script is idempotent, not a complete future migration framework.
 
 `docker-compose.yml` starts PostgreSQL and FastAPI; set `POSTGRES_PASSWORD` and `JWT_SECRET` first. Run the frontend separately with `npm run dev`.

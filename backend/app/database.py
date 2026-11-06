@@ -2,13 +2,14 @@ import os, tempfile, uuid
 from datetime import datetime, timezone
 from sqlalchemy import create_engine, String, Text, DateTime, ForeignKey, JSON, Boolean
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
+from sqlalchemy.pool import NullPool
 
 def now(): return datetime.now(timezone.utc).isoformat()
 def uid(): return str(uuid.uuid4())
 url = os.getenv('DATABASE_URL', 'sqlite:///' + os.path.join(tempfile.gettempdir() if os.getenv('VERCEL') else '.', 'clinixai.db'))
 if url.startswith('postgres://'): url = url.replace('postgres://', 'postgresql+psycopg://', 1)
 if url.startswith('postgresql://'): url = url.replace('postgresql://', 'postgresql+psycopg://', 1)
-engine = create_engine(url, connect_args={'check_same_thread':False} if url.startswith('sqlite') else {}, pool_pre_ping=True)
+engine = create_engine(url, connect_args={'check_same_thread':False} if url.startswith('sqlite') else {}, pool_pre_ping=True, **({'poolclass':NullPool} if not url.startswith('sqlite') else {}))
 Session = sessionmaker(engine, expire_on_commit=False)
 class Base(DeclarativeBase): pass
 class User(Base):
