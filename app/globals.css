@@ -364,6 +364,17 @@ textarea {
   display: flex;
   flex-direction: column;
   z-index: 30;
+  height: 100vh;
+  height: 100dvh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior-y: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #b8cec7 transparent;
+  -webkit-overflow-scrolling: touch;
+}
+.sidebar > * {
+  flex-shrink: 0;
 }
 .sidebar > .brand {
   padding: 0 7px;
