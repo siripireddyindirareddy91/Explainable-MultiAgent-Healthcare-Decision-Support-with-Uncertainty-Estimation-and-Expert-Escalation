@@ -186,17 +186,30 @@ export default function Home() {
   ) {
     const response = await fetch("/api" + path, {
       method,
+      cache: "no-store",
       headers: {
         ...(!(body instanceof FormData)
           ? { "Content-Type": "application/json" }
           : {}),
-        Authorization: "Bearer " + (override || token),
+        Authorization:
+          "Bearer " +
+          (override || sessionStorage.getItem("clinix-token") || token),
       },
       ...(body
         ? { body: body instanceof FormData ? body : JSON.stringify(body) }
         : {}),
     });
     if (!response.ok) {
+      if (
+        response.status === 401 &&
+        !["/auth/login", "/auth/register"].includes(path)
+      ) {
+        sessionStorage.removeItem("clinix-token");
+        setToken("");
+        setUser(null);
+        setLanding(false);
+        setAuth(true);
+      }
       const e = await response
         .json()
         .catch(() => ({ detail: "Request failed" }));
@@ -238,21 +251,44 @@ export default function Home() {
   useEffect(() => {
     const t = sessionStorage.getItem("clinix-token");
     if (t) {
-      setToken(t);
       fetch("/api/auth/me", { headers: { Authorization: "Bearer " + t } })
         .then((r) => (r.ok ? r.json() : Promise.reject()))
         .then((u) => {
+          setToken(t);
           setUser(u);
           setLanding(false);
           refresh(t);
         })
-        .catch(() => sessionStorage.removeItem("clinix-token"));
+        .catch(() => {
+          sessionStorage.removeItem("clinix-token");
+          setToken("");
+          setUser(null);
+          setLanding(false);
+          setAuth(true);
+          setError("Please sign in to start a fresh session.");
+        });
     }
   }, []);
   useEffect(() => {
     if (!token) return;
     const timer = setInterval(() => refresh(token), 45000);
     return () => clearInterval(timer);
+  }, [token]);
+  useEffect(() => {
+    if (!token) return;
+    const renewal = setInterval(
+      async () => {
+        try {
+          const result = await api("/auth/refresh", "POST");
+          sessionStorage.setItem("clinix-token", result.access_token);
+          setToken(result.access_token);
+        } catch (e) {
+          setError((e as Error).message);
+        }
+      },
+      30 * 60 * 1000,
+    );
+    return () => clearInterval(renewal);
   }, [token]);
   useEffect(() => {
     if (view === "Audit trail" && token) {
@@ -1079,6 +1115,52 @@ export default function Home() {
                   </Card>
                 ))}
               </div>
+              <div className="priority-grid">
+                <button
+                  onClick={() => setView("Expert reviews")}
+                  className="priority-card"
+                >
+                  <span className="priority-icon amber">
+                    <ShieldAlert size={21} />
+                  </span>
+                  <div>
+                    <span>REVIEW QUEUE</span>
+                    <strong>
+                      {stats.pending || 0} cases need your attention
+                    </strong>
+                    <p>Inspect safety flags and assign a reviewer</p>
+                  </div>
+                  <ArrowUpRight size={18} />
+                </button>
+                <button
+                  onClick={() => setView("Reports")}
+                  className="priority-card"
+                >
+                  <span className="priority-icon teal">
+                    <FileText size={21} />
+                  </span>
+                  <div>
+                    <span>REPORT LIBRARY</span>
+                    <strong>{reports.length} decision-support reports</strong>
+                    <p>Explore evidence, uncertainty, and review snapshots</p>
+                  </div>
+                  <ArrowUpRight size={18} />
+                </button>
+                <button
+                  onClick={() => setView("Clinical cases")}
+                  className="priority-card"
+                >
+                  <span className="priority-icon blue">
+                    <CheckCircle2 size={21} />
+                  </span>
+                  <div>
+                    <span>HUMAN OVERSIGHT</span>
+                    <strong>{stats.completed || 0} reviews completed</strong>
+                    <p>Browse documented synthetic review examples</p>
+                  </div>
+                  <ArrowUpRight size={18} />
+                </button>
+              </div>
               <div className="overview-banner">
                 <div className="banner-icon">
                   <Workflow size={28} />
@@ -1514,10 +1596,46 @@ export default function Home() {
                           <label className="upload-area">
                             <FileText size={18} />
                             <strong>Attach clinical document</strong>
-                            <span>PDF, DOCX or TXT · Synthetic information only · 5 MB</span>
-                            <input type="file" accept=".pdf,.docx,.txt" disabled={busy || ['Completed','Approved','Rejected'].includes(active.status)} onChange={e=>{const file=e.target.files?.[0]; if(file){const body=new FormData();body.append('file',file);action(async()=>{await api('/cases/'+active.id+'/documents','POST',body);await refresh();tell('Clinical document attached. Run analysis to include its text.');});}e.target.value='';}} />
+                            <span>
+                              PDF, DOCX or TXT · Synthetic information only · 5
+                              MB
+                            </span>
+                            <input
+                              type="file"
+                              accept=".pdf,.docx,.txt"
+                              disabled={
+                                busy ||
+                                ["Completed", "Approved", "Rejected"].includes(
+                                  active.status,
+                                )
+                              }
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) {
+                                  const body = new FormData();
+                                  body.append("file", file);
+                                  action(async () => {
+                                    await api(
+                                      "/cases/" + active.id + "/documents",
+                                      "POST",
+                                      body,
+                                    );
+                                    await refresh();
+                                    tell(
+                                      "Clinical document attached. Run analysis to include its text.",
+                                    );
+                                  });
+                                }
+                                e.target.value = "";
+                              }}
+                            />
                           </label>
-                          {(active.documents||[]).map((d:Row)=><p key={d.id} className="fine-print"><FileText size={12}/>{d.title} · attached patient input</p>)}
+                          {(active.documents || []).map((d: Row) => (
+                            <p key={d.id} className="fine-print">
+                              <FileText size={12} />
+                              {d.title} · attached patient input
+                            </p>
+                          ))}
                           <p>{active.symptoms}</p>
                           <small>
                             Duration: {active.duration || "Not recorded"}
@@ -2025,6 +2143,11 @@ export default function Home() {
                         <Card title="Recorded human decision">
                           <div className="panel-pad">
                             <Badge>{active.review.decision}</Badge>
+                            {active.review.synthetic && (
+                              <Badge tone="amber">
+                                Synthetic example review
+                              </Badge>
+                            )}
                             <h4>{active.review.reviewer_name}</h4>
                             <p>{active.review.notes}</p>
                             <small>

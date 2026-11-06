@@ -30,6 +30,10 @@ Public demo users are seeded only with `DEMO_MODE=true`. Synthetic records are i
 
 ## Features
 
+The expanded demo seeds 16 reproducible synthetic patient scenarios, completed and pending review examples, and seven downloadable report snapshots. Seeded review notes are labeled synthetic examples. UUIDs for these demo patients and cases are stable across server instances.
+
+Session fixes: valid signed clinician demo sessions can recover their identity after temporary SQLite loss; recovery never grants an expert/admin role. The frontend discards invalid sessions, returns to sign-in and renews active sessions every 30 minutes. Real account/password persistence and user-created clinical records still require durable PostgreSQL; session recovery is not a substitute for a durable database.
+
 - Patient registration, searching, case creation, validated vital signs and consent.
 - Nine real deterministic LangGraph agent nodes and conditional escalation.
 - Actual timestamped execution traces and database checkpoint records.

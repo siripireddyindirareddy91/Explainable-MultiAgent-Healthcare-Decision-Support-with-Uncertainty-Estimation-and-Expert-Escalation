@@ -8,6 +8,158 @@
   --bg: #f6f8fa;
   --font: "DM Sans", Arial, sans-serif;
 }
+.priority-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin: 0 0 22px;
+}
+.priority-card {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 20px 17px;
+  background: #fff;
+  border: 1px solid #e1e9ed;
+  border-radius: 9px;
+  text-align: left;
+  box-shadow: 0 3px 10px #15354303;
+}
+.priority-card:hover {
+  border-color: #9acdbf;
+  box-shadow: 0 5px 18px #15354309;
+  transform: translateY(-2px);
+}
+.priority-card > div {
+  min-width: 0;
+  flex: 1;
+}
+.priority-card > div > span {
+  display: block;
+  font-size: 8px;
+  letter-spacing: 1.1px;
+  color: #91a1ac;
+  font-weight: 600;
+  margin-bottom: 7px;
+}
+.priority-card strong {
+  display: block;
+  font-size: 12px;
+  color: #385565;
+  font-weight: 650;
+  line-height: 1.6;
+}
+.priority-card p {
+  font-size: 9px;
+  color: #90a2ad;
+  margin-top: 5px;
+}
+.priority-card > svg {
+  color: #9cb3b7;
+  flex-shrink: 0;
+}
+.priority-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.priority-icon.amber {
+  background: #fff5e6;
+  color: #c69a52;
+}
+.priority-icon.teal {
+  background: #eaf8f1;
+  color: #55a48c;
+}
+.priority-icon.blue {
+  background: #edf4fc;
+  color: #719fc5;
+}
+@media (min-width: 951px) {
+  .nav-item {
+    font-size: 12px;
+  }
+  .card-header p {
+    font-size: 11px;
+  }
+  .metric-label {
+    font-size: 11px;
+  }
+  .metric-card p {
+    font-size: 10px;
+  }
+  .page-heading p {
+    font-size: 12px;
+  }
+  .badge {
+    font-size: 10px;
+  }
+  th {
+    font-size: 10px;
+  }
+  td,
+  td strong {
+    font-size: 12px;
+  }
+  td small {
+    font-size: 10px;
+  }
+  .symptom {
+    font-size: 11px;
+  }
+  .research-notice {
+    font-size: 10px;
+  }
+  .network-row {
+    font-size: 11px;
+  }
+  .chart-footer {
+    font-size: 10px;
+  }
+  .distribution-bars > div > div:first-child {
+    font-size: 11px;
+  }
+}
+@media (max-width: 1100px) {
+  .priority-grid {
+    grid-template-columns: 1fr;
+  }
+  .priority-card {
+    padding: 16px 19px;
+  }
+  .priority-card p {
+    font-size: 10px;
+  }
+  .priority-card strong {
+    font-size: 13px;
+  }
+}
+@media (max-width: 700px) {
+  .priority-grid {
+    gap: 10px;
+    margin-bottom: 17px;
+  }
+  .priority-card {
+    padding: 15px;
+  }
+  .priority-card strong {
+    font-size: 11px;
+  }
+  .priority-card p {
+    font-size: 9px;
+  }
+  .priority-card > div > span {
+    font-size: 7px;
+  }
+  .priority-icon {
+    width: 34px;
+    height: 34px;
+  }
+}
 * {
   box-sizing: border-box;
 }

@@ -1,4 +1,4 @@
-import os, io, json, time, threading
+import os, io, json, time, threading, uuid
 from collections import defaultdict, deque
 from datetime import datetime
 from xml.sax.saxutils import escape
@@ -63,8 +63,8 @@ class Assignment(BaseModel):
 class TextInput(BaseModel):
     text:str=Field(min_length=3,max_length=10000)
 
-def add(db,kind,data,user):
-    r=Record(id=uid(),kind=kind,owner=user.id if user else 'demo',data=data); db.add(r); db.commit(); return r
+def add(db,kind,data,user,record_id=None):
+    r=Record(id=record_id or uid(),kind=kind,owner=user.id if user else 'demo',data=data); db.add(r); db.commit(); return r
 def get(db,id,kind=None):
     r=db.get(Record,id)
     if not r or r.deleted or (kind and r.kind!=kind): raise HTTPException(404,'Record not found')
@@ -96,13 +96,38 @@ def seed():
         for role,name in [('admin','Alex Morgan'),('clinician','Dr. Maya Rao'),('expert','Dr. Arjun Shah')]:
             if not db.scalar(select(User).where(User.email==role+'@clinixai.demo')): db.add(User(id='demo-'+role,email=role+'@clinixai.demo',name=name,role=role,password=hash_password('ClinixDemo!2026')))
         db.commit(); user=db.get(User,'demo-clinician')
-        if db.scalar(select(Record).where(Record.kind=='patient')): return
-        add(db,'knowledge',{'title':'Synthetic teaching reference · vital-sign review','source':'CLINIXAI synthetic teaching material, version 1. Not an external medical guideline.','synthetic':True,'chunks':[{'text':'Fever cough fatigue symptoms require clinician history and vital signs review. Elevated temperature and heart rate can have many explanations. This synthetic passage is for demonstrating retrieval only. It is not clinical evidence.','page':1},{'text':'Chest pain breathlessness dizziness and oxygen saturation observations require qualified professional assessment. Missing information and contradictory history require human review. Synthetic demonstration text; not a validated guideline.','page':2}]},user)
+        stable=lambda key:str(uuid.uuid5(uuid.NAMESPACE_URL,'clinixai-demo-v2:'+key))
+        if not db.get(Record,stable('knowledge')):
+            add(db,'knowledge',{'title':'Synthetic teaching reference · vital-sign review','source':'CLINIXAI synthetic teaching material, version 1. Not an external medical guideline.','synthetic':True,'chunks':[{'text':'Fever cough fatigue symptoms require clinician history and vital signs review. Elevated temperature and heart rate can have many explanations. This synthetic passage is for demonstrating retrieval only. It is not clinical evidence.','page':1},{'text':'Chest pain breathlessness dizziness and oxygen saturation observations require qualified professional assessment. Missing information and contradictory history require human review. Synthetic demonstration text; not a validated guideline.','page':2}]},user,stable('knowledge'))
         samples=[('Aarav Mehta',46,'Male','Hypertension','Amlodipine','None known','Chest pain and breathlessness','2 hours',{'heart_rate':116,'systolic':156,'spo2':90,'temperature':37.2}),('Sofia Williams',32,'Female','None reported','None','Penicillin','Fever and cough','3 days',{'heart_rate':104,'systolic':118,'spo2':97,'temperature':38.6}),('Rohan Patel',61,'Male','','Metformin','','Fatigue and dizziness','1 week',{'heart_rate':86,'systolic':126,'spo2':None,'temperature':36.8}),('Emma Wilson',28,'Female','None reported','None','None known','Mild cough','2 days',{'heart_rate':75,'systolic':114,'spo2':99,'temperature':36.7})]
-        for name,age,sex,history,meds,allergies,symptoms,duration,vitals in samples:
-            p=add(db,'patient',{'name':name,'age':age,'sex':sex,'history':history,'medications':meds,'allergies':allergies,'synthetic':True},user)
-            c=add(db,'case',{'patient_id':p.id,'patient_name':name,'symptoms':symptoms,'duration':duration,'notes':'Synthetic demonstration record','vitals':vitals,'consent':True,'status':'Draft'},user)
+        samples += [
+            ('Ananya Sharma',37,'Female','Asthma','Recorded inhaler','Dust','Cough and fatigue','4 days',{'heart_rate':92,'systolic':122,'spo2':96,'temperature':37.3}),
+            ('James Anderson',54,'Male','Hypertension','Recorded antihypertensive','None known','Dizziness and fatigue','2 days',{'heart_rate':82,'systolic':148,'spo2':98,'temperature':36.6}),
+            ('Priya Nair',26,'Female','None reported','None','None known','Fever and sore throat','2 days',{'heart_rate':95,'systolic':112,'spo2':99,'temperature':38.2}),
+            ('Daniel Kim',43,'Male','None reported','None','None known','Mild cough and fatigue','5 days',{'heart_rate':79,'systolic':124,'spo2':98,'temperature':36.9}),
+            ('Fatima Khan',68,'Female','Diabetes','Recorded glucose-lowering medication','','Fatigue and dizziness','1 week',{'heart_rate':88,'systolic':138,'spo2':97,'temperature':36.8}),
+            ('Oliver Brown',72,'Male','Cardiac history','Recorded medication','None known','Chest pain and dizziness','1 hour',{'heart_rate':134,'systolic':88,'spo2':91,'temperature':37.1}),
+            ('Kavya Reddy',31,'Female','None reported','None','None known','Cough and fever','3 days',{'heart_rate':101,'systolic':116,'spo2':97,'temperature':38.4}),
+            ('Lucas Martin',48,'Male','None reported','None','None known','Fatigue after poor sleep','1 week',{'heart_rate':74,'systolic':126,'spo2':99,'temperature':36.7}),
+            ('Meera Iyer',59,'Female','Hypertension','Recorded medication','None known','Dizziness and cough','2 days',{'heart_rate':84,'systolic':142,'spo2':98,'temperature':37.0}),
+            ('Noah Thompson',35,'Male','None reported','None','None known','Cough and fatigue','4 days',{'heart_rate':80,'systolic':119,'spo2':99,'temperature':36.8}),
+            ('Aisha Ahmed',41,'Female','','None','','Fever and fatigue','3 days',{'heart_rate':108,'systolic':None,'spo2':None,'temperature':38.7}),
+            ('Vikram Desai',64,'Male','Respiratory history','Recorded inhaler','None known','Severe breathlessness and cough','6 hours',{'heart_rate':122,'systolic':105,'spo2':89,'temperature':37.8})]
+        for i,(name,age,sex,history,meds,allergies,symptoms,duration,vitals) in enumerate(samples):
+            pid,cid=stable('patient:'+name),stable('case:'+name)
+            if db.get(Record,cid): continue
+            p=db.get(Record,pid) or add(db,'patient',{'name':name,'age':age,'sex':sex,'history':history,'medications':meds,'allergies':allergies,'synthetic':True},user,pid)
+            c=add(db,'case',{'patient_id':p.id,'patient_name':name,'symptoms':symptoms,'duration':duration,'notes':'Synthetic teaching scenario. No real patient information.','vitals':vitals,'consent':True,'status':'Draft'},user,cid)
             execute(db,c,user)
+            if i in (3,4,6,7,10,11,13):
+                decision='Completed' if i%2 else 'Additional Information Required'
+                review_data={'case_id':cid,'decision':decision,'notes':'Synthetic example reviewer note: observations inspected; complete history and confirm recorded vital signs before interpretation. No diagnosis or treatment is established.','reviewer_id':'demo-expert','reviewer_name':'Dr. Arjun Shah','reviewed_at':now(),'authorship':'seeded synthetic example','synthetic':True}
+                rr=add(db,'review',review_data,user,stable('review:'+name))
+                c.data={**c.data,'status':decision,'review':serialize(rr)}; db.commit()
+                for e in listing(db,'escalation',user):
+                    if e['case_id']==cid:
+                        er=get(db,e['id']);er.data={**er.data,'status':decision,'assigned_to':'demo-expert','assigned_name':'Dr. Arjun Shah'};db.commit()
+                add(db,'report',{'case_id':cid,'patient_name':name,'status':decision,'snapshot':serialize(c)},user,stable('report:'+name))
 seed()
 
 @app.get('/api/health')
